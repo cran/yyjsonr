@@ -1,7 +1,7 @@
-7afec5ed99a24716477f81e239a331f0 *DESCRIPTION
+3b0c7d22489e6eb56d8a69be519834f1 *DESCRIPTION
 3f920d18d18b3e03d0205e3433902455 *LICENSE
 b0f492e201fca02f51e758ece417bf69 *NAMESPACE
-6ba7f8e5dc0503ce86775803aceefd6f *NEWS.md
+e8faa8c13edcf03f495a9b1965dbd531 *NEWS.md
 2ed215840b3019b488ba98ce08576854 *R/aaa.R
 655c3708b6c20a6c1d006c6c91016e3f *R/json-opts.R
 92514cc55bcc10e74b11405c91fd84b6 *R/json.R
@@ -54,9 +54,9 @@ a369de6cd90f9bc15274fa6ba1bf7e6b *man/write_json_file.Rd
 028ccd1e9a21ae825ab486913c0b7dcb *man/yyjson_read_flag.Rd
 a89340614a7d0947dbe0939fdb64cd02 *man/yyjson_write_flag.Rd
 aab2810b1c303b15d0ba926be48ae019 *src/Makevars
-9b16c35cd84ff84fcdd12bbc434435a1 *src/R-yyjson-parse.c
-99308d1455eb7613dbde2c860f323d2e *src/R-yyjson-parse.h
-9d760837b9b553ceb0765af4e5d21a0a *src/R-yyjson-serialize.c
+1806abb61900cc4c5bb16fec77c1075a *src/R-yyjson-parse.c
+4d74dc881eb5f63ec47b728b96ffa764 *src/R-yyjson-parse.h
+c909998c8490a38a8857c5f7f3ac3ac3 *src/R-yyjson-serialize.c
 1e88a8c12e70f1ea3a4e997ea9adbb80 *src/R-yyjson-serialize.h
 746b62517d90a20661084315d521ce61 *src/init.c
 4fe70f72d22f2cb1eca11b5c4119dc98 *src/yyjson.c
