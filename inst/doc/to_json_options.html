@@ -60,7 +60,7 @@ div.sourceCode { overflow: auto; }
 }
 @media print {
 pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
 { counter-reset: source-line 0; }
@@ -631,7 +631,10 @@ package converts R objects to JSON.</p>
 #&gt; [1] 32
 #&gt; 
 #&gt; $YYJSON_WRITE_PRETTY_TWO_SPACES
-#&gt; [1] 64</code></pre>
+#&gt; [1] 64
+#&gt; 
+#&gt; $YYJSON_WRITE_NEWLINE_AT_END
+#&gt; [1] 128</code></pre>
 <div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a><span class="fu">write_json_str</span>(</span>
 <span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>  <span class="fu">c</span>(<span class="st">&#39;hello / there&#39;</span>, <span class="st">&#39;#RStats&#39;</span>),</span>
 <span id="cb40-3"><a href="#cb40-3" tabindex="-1"></a>  <span class="at">opts =</span> <span class="fu">opts_write_json</span>(<span class="at">yyjson_write_flag =</span> <span class="fu">c</span>(</span>

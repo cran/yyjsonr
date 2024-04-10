@@ -1,5 +1,55 @@
 
 
+# yyjsonr 0.1.20 2024-04-10
+
+* Fix outstanding `rchk` errors
+
+# yyjsonr 0.1.19 2024-04-10
+
+* Prepare for CRAN
+
+# yyjsonr 0.1.18.9007 2024-04-09
+
+* Fix some compilation warnings.
+* Update documentation.
+* Update to yyjson v0.9.0
+
+# yyjsonr 0.1.18.9006 2024-04-02
+
+* Bug fix for serializing `NA` in factors
+
+# yyjsonr 0.1.18.9005 2024-03-16
+
+* Re-introduce GeoJSON support
+
+# yyjsonr 0.1.18.9004 2024-03-15
+
+* Re-introduce NDJSON support
+* Add `read_ndjson_str()`
+
+# yyjsonr 0.1.18.9003 2024-03-13
+
+* call `normalizePath()` on all file paths
+* clarify authorship and copyright
+
+# yyjsonr 0.1.18.9002 2024-03-07
+
+* Increase maximum number of allowed data.frame columns (during parsing) to 2048
+
+# yyjsonr 0.1.18.9001 2024-02-01
+
+* Read JSON from '.gz' files in `read_json_file()`
+
+# yyjsonr 0.1.18.9000 2024-01-25
+
+* New `fast_numerics` flag when writing.
+    * Default `FALSE`
+    * If `TRUE` the user is guaranteeing that there are no NA, NaN or Inf values
+      in the numeric and integer vectors, and thus a faster method for writing
+      these vectors to JSON can be used.
+* Changed writing of `raw` vectors to always use the `fast_numerics` method,
+  as raw R vectors (by definition) will not have NA, NaN or Inf values.
+
 # yyjsonr 0.1.18 2024-01-22
 
 * Fixes for CRAN

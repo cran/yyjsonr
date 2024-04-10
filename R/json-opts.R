@@ -136,6 +136,8 @@ yyjson_read_flag <- list(
 #' This flag does not affect the performance of correctly encoded strings.}
 #' \item{YYJSON_WRITE_PRETTY_TWO_SPACES}{Write JSON pretty with 2 space indent.
 #' This flag will override `YYJSON_WRITE_PRETTY` flag.}
+#' \item{YYJSON_WRITE_NEWLINE_AT_END}{Adds a newline character
+#' at the end of the JSON. This can be helpful for text editors or NDJSON}
 #' }
 #' 
 #' @export
@@ -146,14 +148,15 @@ yyjson_read_flag <- list(
 #' ))
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 yyjson_write_flag <- list(
-  YYJSON_WRITE_NOFLAG                  =  0L,
-  YYJSON_WRITE_PRETTY                  =  1L,
-  YYJSON_WRITE_ESCAPE_UNICODE          =  2L,
-  YYJSON_WRITE_ESCAPE_SLASHES          =  4L,
-  YYJSON_WRITE_ALLOW_INF_AND_NAN       =  8L,
-  YYJSON_WRITE_INF_AND_NAN_AS_NULL     = 16L,
-  YYJSON_WRITE_ALLOW_INVALID_UNICODE   = 32L,
-  YYJSON_WRITE_PRETTY_TWO_SPACES       = 64L
+  YYJSON_WRITE_NOFLAG                  =   0L,
+  YYJSON_WRITE_PRETTY                  =   1L,
+  YYJSON_WRITE_ESCAPE_UNICODE          =   2L,
+  YYJSON_WRITE_ESCAPE_SLASHES          =   4L,
+  YYJSON_WRITE_ALLOW_INF_AND_NAN       =   8L,
+  YYJSON_WRITE_INF_AND_NAN_AS_NULL     =  16L,
+  YYJSON_WRITE_ALLOW_INVALID_UNICODE   =  32L,
+  YYJSON_WRITE_PRETTY_TWO_SPACES       =  64L,
+  YYJSON_WRITE_NEWLINE_AT_END          = 128L
 )
 
 
@@ -256,6 +259,15 @@ opts_read_json <- function(
 #' @param num_specials Should special numeric values (i.e. NA, NaN, Inf) be
 #'        converted to a JSON \code{null} value or converted to a string 
 #'        representation e.g. "NA"/"NaN" etc.   Default: 'null'
+#' @param fast_numerics Does the user guarantee that there are no NA, NaN or Inf
+#'        values in the numeric vectors?  Default: FALSE.  If \code{TRUE} then
+#'        numeric and integer vectors will be written to JSON using a faster method.
+#'        Note: if there are NA, NaN or Inf values, an error will be thrown.
+#'        Expert users are invited to also consider the
+#'        \code{YYJSON_WRITE_ALLOW_INF_AND_NAN} and 
+#'        \code{YYJSON_WRITE_INF_AND_NAN_AS_NULL} options for \code{yyjson_write_flags}
+#'        and should consult the \code{yyjson} API documentation for 
+#'        further details.
 #' @param yyjson_write_flag integer vector corresponding to internal \code{yyjson}
 #'        options.  See \code{yyjson_write_flag} in this package, and read
 #'        the yyjson API documentation for more information.  This is considered
@@ -277,6 +289,7 @@ opts_write_json <- function(
     name_repair       = c('none', 'minimal'),
     num_specials      = c('null', 'string'),
     str_specials      = c('null', 'string'),
+    fast_numerics     = FALSE,
     yyjson_write_flag = 0L) {
   
   structure(
@@ -289,6 +302,7 @@ opts_write_json <- function(
       name_repair       = match.arg(name_repair),
       str_specials      = match.arg(str_specials),
       num_specials      = match.arg(num_specials),
+      fast_numerics     = isTRUE(fast_numerics),
       yyjson_write_flag = as.integer(yyjson_write_flag)
     ),
     class = "opts_write_json"
