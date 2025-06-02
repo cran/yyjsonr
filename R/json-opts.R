@@ -194,6 +194,12 @@ yyjson_write_flag <- list(
 #'        then array of mixed string/numeric types will be promoted to all 
 #'        string values and returned as an atomic character vector.  Set this to \code{TRUE}
 #'        if you want to emulate the behaviour of \code{jsonlite::fromJSON()}
+#' @param digits_promote When promoting numbers to be strings, how many decimal 
+#'        places should be used in the representation. Default: 6.  This option is only 
+#'        valid if \code{promote_num_to_string = TRUE}. Valid range 0 to 30
+#' @param single_null R object to return for isolated JSON \code{null} values.
+#'        Default: NULL.  Note: JSON \code{null} values in arrays may still be
+#'        promoted to \code{NAs} of the appropriate type if possible.
 #' @param length1_array_asis logical. Should JSON arrays with length = 1 be 
 #'        marked with class \code{AsIs}.  Default: FALSE
 #'
@@ -206,6 +212,7 @@ yyjson_write_flag <- list(
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 opts_read_json <- function(
     promote_num_to_string = FALSE,
+    digits_promote        = 6,
     df_missing_list_elem  = NULL,
     obj_of_arrs_to_df     = TRUE,
     arr_of_objs_to_df     = TRUE,
@@ -213,12 +220,14 @@ opts_read_json <- function(
     num_specials          = c('special', 'string'),
     int64                 = c('string', 'double', 'bit64'),
     length1_array_asis    = FALSE,
+    single_null           = NULL,
     yyjson_read_flag      = 0L
 ) {
   
   structure(
     list(
       promote_num_to_string = isTRUE(promote_num_to_string),
+      digits_promote        = as.integer(digits_promote),
       df_missing_list_elem  = df_missing_list_elem,
       obj_of_arrs_to_df     = isTRUE(obj_of_arrs_to_df),
       arr_of_objs_to_df     = isTRUE(arr_of_objs_to_df),
@@ -226,6 +235,7 @@ opts_read_json <- function(
       str_specials          = match.arg(str_specials),
       num_specials          = match.arg(num_specials),
       int64                 = match.arg(int64),
+      single_null           = single_null,
       yyjson_read_flag      = as.integer(yyjson_read_flag)
     ),
     class = "opts_read_json"
@@ -240,6 +250,13 @@ opts_read_json <- function(
 #'        Positive values specify number of decimal places. Using zero will
 #'        write the numeric value as an integer. Values less than zero mean that
 #'        the floating point value should be written as-is (the default).
+#'        This argument is ignored if \code{digits_signif} is greater than zero.
+#' @param digits_secs decimal places for fractional seconds when converting
+#'        times to a string representation. Default: 0.  Valid range: 0 to 6
+#' @param digits_signif significant decimal places to store in floating point numbers.
+#'        Default: -1 means to output the number as-is (while respecting the 
+#'        \code{digits}) argument.  Values above 0 will produce rounding to
+#'        the given number of places and the \code{digits} argument will be ignored.
 #' @param dataframe how to encode data.frame objects. Options 'rows' or 
 #'        columns'.  Default: 'rows'
 #' @param factor how to encode factor objects: must be one of 'string' or 'integer'
@@ -268,6 +285,10 @@ opts_read_json <- function(
 #'        \code{YYJSON_WRITE_INF_AND_NAN_AS_NULL} options for \code{yyjson_write_flags}
 #'        and should consult the \code{yyjson} API documentation for 
 #'        further details.
+#' @param json_verbatim Write strings with class 'json' directly into 
+#'        the result?  Default: FALSE.  If \code{json_verbatim = TRUE} and
+#'        a string has the class \code{"json"}, then it will be written verbatim
+#'        into the output.
 #' @param yyjson_write_flag integer vector corresponding to internal \code{yyjson}
 #'        options.  See \code{yyjson_write_flag} in this package, and read
 #'        the yyjson API documentation for more information.  This is considered
@@ -281,7 +302,9 @@ opts_read_json <- function(
 #' write_json_str(head(iris, 3), opts = opts_write_json(factor = 'integer'))
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 opts_write_json <- function( 
-    digits            = -1,
+    digits            = -1L,
+    digits_secs       =  0L,
+    digits_signif     = -1L,
     pretty            = FALSE,
     auto_unbox        = FALSE,
     dataframe         = c("rows", "columns"),
@@ -290,11 +313,14 @@ opts_write_json <- function(
     num_specials      = c('null', 'string'),
     str_specials      = c('null', 'string'),
     fast_numerics     = FALSE,
+    json_verbatim     = FALSE,
     yyjson_write_flag = 0L) {
   
   structure(
     list(
       digits            = as.integer(digits),
+      digits_secs       = as.integer(digits_secs),
+      digits_signif     = as.integer(digits_signif),
       dataframe         = match.arg(dataframe),
       factor            = match.arg(factor),
       auto_unbox        = isTRUE(auto_unbox),
@@ -303,6 +329,7 @@ opts_write_json <- function(
       str_specials      = match.arg(str_specials),
       num_specials      = match.arg(num_specials),
       fast_numerics     = isTRUE(fast_numerics),
+      json_verbatim     = isTRUE(json_verbatim),
       yyjson_write_flag = as.integer(yyjson_write_flag)
     ),
     class = "opts_write_json"

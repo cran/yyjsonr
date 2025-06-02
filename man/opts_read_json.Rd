@@ -6,6 +6,7 @@
 \usage{
 opts_read_json(
   promote_num_to_string = FALSE,
+  digits_promote = 6,
   df_missing_list_elem = NULL,
   obj_of_arrs_to_df = TRUE,
   arr_of_objs_to_df = TRUE,
@@ -13,6 +14,7 @@ opts_read_json(
   num_specials = c("special", "string"),
   int64 = c("string", "double", "bit64"),
   length1_array_asis = FALSE,
+  single_null = NULL,
   yyjson_read_flag = 0L
 )
 }
@@ -24,6 +26,10 @@ be a \code{list} rather than an atomic vector when types are mixed.  If \code{TR
 then array of mixed string/numeric types will be promoted to all
 string values and returned as an atomic character vector.  Set this to \code{TRUE}
 if you want to emulate the behaviour of \code{jsonlite::fromJSON()}}
+
+\item{digits_promote}{When promoting numbers to be strings, how many decimal
+places should be used in the representation. Default: 6.  This option is only
+valid if \code{promote_num_to_string = TRUE}. Valid range 0 to 30}
 
 \item{df_missing_list_elem}{R value to use when elements are missing in list
 columns in data.frames. Default: NULL}
@@ -53,6 +59,10 @@ be stored in this type.}
 
 \item{length1_array_asis}{logical. Should JSON arrays with length = 1 be
 marked with class \code{AsIs}.  Default: FALSE}
+
+\item{single_null}{R object to return for isolated JSON \code{null} values.
+Default: NULL.  Note: JSON \code{null} values in arrays may still be
+promoted to \code{NAs} of the appropriate type if possible.}
 
 \item{yyjson_read_flag}{integer vector of internal \code{yyjson}
 options.  See \code{yyjson_read_flag} in this package, and read

@@ -1,4 +1,5 @@
 
+#define R_NO_REMAP
 
 #include <R.h>
 #include <Rinternals.h>
@@ -26,7 +27,7 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 SEXP grow_list(SEXP oldlist) {
   R_xlen_t len = XLENGTH(oldlist);
-  SEXP newlist = PROTECT(allocVector(VECSXP, 2 * len));
+  SEXP newlist = PROTECT(Rf_allocVector(VECSXP, 2 * len));
   for (R_xlen_t i=0; i < len; i++) {
     SET_VECTOR_ELT(newlist, i, VECTOR_ELT(oldlist, i));
   }
@@ -96,8 +97,13 @@ int count_lines(const char *filename) {
 //   CON: Slower: Every object on every line gets allocated into an R object
 //        Compared to data.frame which allocates all its space at once and
 //        just slots values into this memory.
+//
+// @param filename filename containing ndjson data
+// @param nread_limit number of lines to read
+// @param nskip number of lines to skip before reading
+// @param parse_opts list of options for parsing.
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP parse_opts_) {
+SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_limit_, SEXP nskip_, SEXP parse_opts_) {
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Buffer to read each line of the input file.
@@ -106,8 +112,8 @@ SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP p
   
   parse_options opt = create_parse_options(parse_opts_);
   
-  int nread = asInteger(nread_);
-  int nskip = asInteger(nskip_);
+  int nread_limit = Rf_asInteger(nread_limit_);
+  int nskip = Rf_asInteger(nskip_);
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Check for file
@@ -115,7 +121,7 @@ SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP p
   const char *filename = (const char *)CHAR(STRING_ELT(filename_, 0));
   filename = R_ExpandFileName(filename);
   if (access(filename, R_OK) != 0) {
-    error("Cannot read from file '%s'", filename);
+    Rf_error("Cannot read from file '%s'", filename);
   }
     
     
@@ -137,7 +143,9 @@ SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP p
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Allocating a list with a default starting size to grow into.
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP list_ = PROTECT(allocVector(VECSXP, 64));
+  PROTECT_INDEX ipx;
+  SEXP list_;
+  PROTECT_WITH_INDEX(list_ = Rf_allocVector(VECSXP, 64), &ipx);
   R_xlen_t list_size = XLENGTH(list_);
   
   
@@ -152,19 +160,18 @@ SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP p
   //        insert resulting robject into list
   //   - free the doc
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  unsigned int i = 0;
+  unsigned int nread_actual = 0;
   while (gzgets(input, buf, MAX_LINE_LENGTH) != 0) {
     
-    if (i >= nread) {
+    if (nread_actual >= nread_limit) {
       break;
     }
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Grow list if we need more room
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if (i >= list_size) {
-      UNPROTECT(1);
-      list_ = PROTECT(grow_list(list_));
+    if (nread_actual >= list_size) {
+      REPROTECT(list_ = Rf_lengthgets(list_, 2 * (R_len_t)list_size), ipx);
       list_size = XLENGTH(list_);
     }
     
@@ -177,25 +184,23 @@ SEXP parse_ndjson_file_as_list_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP p
     
     if (doc == NULL) {
       output_verbose_error(buf, err);
-      warning("Couldn't parse NDJSON row %i. Inserting 'NULL'\n", i + 1);
-      SET_VECTOR_ELT(list_, i, R_NilValue);
+      Rf_warning("Couldn't parse NDJSON row %i. Inserting 'NULL'\n", nread_actual + 1);
+      SET_VECTOR_ELT(list_, nread_actual, R_NilValue);
     } else {
-      SET_VECTOR_ELT(list_, i, parse_json_from_str(buf, strlen(buf), &opt));
+      SET_VECTOR_ELT(list_, nread_actual, parse_json_from_str(buf, strlen(buf), &opt));
     }
     
     yyjson_doc_free(doc);
     
-    i++;
+    nread_actual++;
   }
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // In-situ faux truncation of a VECSXP object.
-  // This just hides the trailing elements from R
+  // 'list_' is oversized 
+  // Need to copy list into a new list which contains just the valid elements
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SETLENGTH(list_, i);
-  SET_TRUELENGTH(list_, list_size);
-  SET_GROWABLE_BIT(list_);
-  
+  REPROTECT(list_ = Rf_lengthgets(list_, (R_len_t)nread_actual), ipx);
+
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Close input, tidy memory and return
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,15 +227,17 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
   parse_options opt = create_parse_options(parse_opts_);
   opt.yyjson_read_flag |= YYJSON_READ_STOP_WHEN_DONE;
   
-  int nread = asInteger(nread_);
-  int nskip = asInteger(nskip_);
+  int nread = Rf_asInteger(nread_);
+  int nskip = Rf_asInteger(nskip_);
   
   
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Allocating a list with a default starting size to grow into.
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP list_ = PROTECT(allocVector(VECSXP, 64));
+  PROTECT_INDEX ipx;
+  SEXP list_;
+  PROTECT_WITH_INDEX(list_ = Rf_allocVector(VECSXP, 64), &ipx);
   R_xlen_t list_size = XLENGTH(list_);
   
   
@@ -245,10 +252,20 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
   //        insert resulting robject into list
   //   - free the doc
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  char *str = (char *)CHAR( STRING_ELT(str_, 0) );
-  size_t str_size = strlen(str);
-  size_t orig_str_size = strlen(str);
-  size_t total_read = 0;
+  char *str;
+  size_t str_size;      
+  size_t orig_str_size; 
+  size_t total_read = 0;    
+  
+  if (TYPEOF(str_) == RAWSXP) {
+    str           = (char *)RAW(str_);
+    str_size      = (size_t)Rf_length(str_);
+    orig_str_size = (size_t)Rf_length(str_);
+  } else {
+    str           = (char *)CHAR( STRING_ELT(str_, 0) );
+    str_size      = strlen(str);
+    orig_str_size = strlen(str);
+  }
   
   
   
@@ -283,8 +300,7 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
     // Grow list if we need more room
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     if (i >= list_size) {
-      UNPROTECT(1);
-      list_ = PROTECT(grow_list(list_));
+      REPROTECT(list_ = Rf_lengthgets(list_, 2 * (R_len_t)list_size), ipx);
       list_size = XLENGTH(list_);
     }
     
@@ -294,7 +310,7 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
     
     
     if (doc == NULL) {
-      warning("Couldn't parse NDJSON row %i. Inserting 'NULL'\n", i + 1);
+      Rf_warning("Couldn't parse NDJSON row %i. Inserting 'NULL'\n", i + 1);
       SET_VECTOR_ELT(list_, i, R_NilValue);
     } else {
       SET_VECTOR_ELT(list_, i, parse_json_from_str(str, str_size, &opt));
@@ -312,13 +328,13 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
     str_size -= (pos + 1);
   }
   
+  
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // In-situ faux truncation of a VECSXP object.
-  // This just hides the trailing elements from R
+  // 'list_' is oversized 
+  // Need to copy list into a new list which contains just the valid elements
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SETLENGTH(list_, i);
-  SET_TRUELENGTH(list_, list_size);
-  SET_GROWABLE_BIT(list_);
+  REPROTECT(list_ = Rf_lengthgets(list_, (R_len_t)i), ipx);
+  
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Close input, tidy memory and return
@@ -327,6 +343,62 @@ SEXP parse_ndjson_str_as_list_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP parse_o
   return list_;
 }
 
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Truncate all the vectors in a list to the same length.
+// This function operates in-situ
+//
+// @param df_ data.frame
+// @param data_length the actual length of the data in the vector.
+//        data_length <= allocated_length
+// @param allocated_length the full length allocated for this vector
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void truncate_list_of_vectors(SEXP df_, int data_length, int allocated_length) {
+  if (data_length != allocated_length) {
+    for (int i=0; i < Rf_length(df_); i++) {
+      SEXP trunc_ = PROTECT(Rf_lengthgets(VECTOR_ELT(df_, i), data_length));
+      SET_VECTOR_ELT(df_, i, trunc_);
+      UNPROTECT(1);
+    }
+  }
+}
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Given a list of vectors (of all the same length), convert it to a 
+// data.frame
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SEXP promote_list_to_data_frame(SEXP df_, char **colname, int ncols) {
+  
+  int nprotect = 0;
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Set colnames on data.frame
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  SEXP nms_ = PROTECT(Rf_allocVector(STRSXP, ncols)); nprotect++;
+  for (unsigned int i = 0; i < ncols; i++) {
+    SET_STRING_ELT(nms_, i, Rf_mkChar(colname[i]));
+  }
+  Rf_setAttrib(df_, R_NamesSymbol, nms_);
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Set empty rownames on data.frame
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  int nrows = Rf_length(VECTOR_ELT(df_, 1));
+  SEXP rownames = PROTECT(Rf_allocVector(INTSXP, 2)); nprotect++;
+  SET_INTEGER_ELT(rownames, 0, NA_INTEGER);
+  SET_INTEGER_ELT(rownames, 1, -nrows);
+  Rf_setAttrib(df_, R_RowNamesSymbol, rownames);
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Set 'data.frame' class
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  SET_CLASS(df_, Rf_mkString("data.frame"));
+  
+  UNPROTECT(nprotect);
+  return df_;
+}
 
 
 
@@ -359,13 +431,13 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
   // Check for file
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if (access(filename, R_OK) != 0) {
-    error("Cannot read from file '%s'", filename);
+    Rf_error("Cannot read from file '%s'", filename);
   }
   
   
-  int nread  = asInteger(nread_);
-  int nskip  = asInteger(nskip_);
-  int nprobe = asInteger(nprobe_);
+  int nread  = Rf_asInteger(nread_);
+  int nskip  = Rf_asInteger(nskip_);
+  int nprobe = Rf_asInteger(nprobe_);
   
   if (nread < 0) {
     nread = INT32_MAX;
@@ -400,7 +472,7 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
   // Each column also has a 'type_bitset' to keep track of the type of each
   // value across the different {}-objects
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  char *colname[MAX_DF_COLS];
+  char *colname[MAX_DF_COLS] = { 0 };
   unsigned int type_bitset[MAX_DF_COLS] = {0};
   unsigned int sexp_type[MAX_DF_COLS] = {0};
   int ncols = 0;
@@ -437,7 +509,7 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
     yyjson_doc *doc = yyjson_read_opts(buf, strlen(buf), opt.yyjson_read_flag, NULL, &err);
     if (doc == NULL) {
       output_verbose_error(buf, err);
-      error("Couldn't parse JSON during probe line %i\n", i + 1);
+      Rf_error("Couldn't parse JSON during probe line %i\n", i + 1);
     }
     
     yyjson_val *obj = yyjson_doc_get_root(doc);
@@ -455,26 +527,32 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
         }
       }
       if (name_idx < 0) {
-        // Name has not been seen yet
+        // Name has not been seen yet.
+        // Need to copy the string as the 'doc' it is from is freed at the end of every loop
         name_idx = ncols;
-        colname[ncols] = (char *)yyjson_get_str(key);
+        char *new_name = (char *)yyjson_get_str(key);
+        size_t n = strlen(new_name) + 1;
+        colname[ncols] = calloc(n, 1);
+        if (colname[ncols] == 0) Rf_error("Failed to allocate 'colname'");
+        strcpy(colname[ncols], new_name);
         ncols++;
         if (ncols == MAX_DF_COLS) {
-          error("Maximum columns for data.frame exceeded: %i", MAX_DF_COLS);
+          Rf_error("Maximum columns for data.frame exceeded: %i", MAX_DF_COLS);
         }
       }
       
       type_bitset[name_idx] = update_type_bitset(type_bitset[name_idx], val, &opt);
     }
     
+    yyjson_doc_free(doc);
   }
   
   gzclose(input);
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Create a data.frame.
+  // Create a list (which will be promoted to a data.frame before returning)
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP df_ = PROTECT(allocVector(VECSXP, ncols)); nprotect++;
+  SEXP df_ = PROTECT(Rf_allocVector(VECSXP, ncols)); nprotect++;
   
   
   
@@ -494,9 +572,9 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
     unsigned int alloc_type = sexp_type[col] == INT64SXP ? REALSXP : sexp_type[col];
     
     // Allocate memory for column
-    SEXP vec_ = PROTECT(allocVector(alloc_type, nrows));
+    SEXP vec_ = PROTECT(Rf_allocVector(alloc_type, nrows));
     if (sexp_type[col] == INT64SXP) {
-      setAttrib(vec_, R_ClassSymbol, mkString("integer64"));
+      Rf_setAttrib(vec_, R_ClassSymbol, Rf_mkString("integer64"));
     }
     
     // place vector into data.frame
@@ -528,7 +606,7 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
   for (unsigned int i = 0; i < nrows; i++) {
     char *ret = gzgets(input, buf, MAX_LINE_LENGTH);
     if (ret == NULL) {
-      error("Unexepcted end to data\n");
+      Rf_error("Unexepcted end to data\n");
     }
     
     // ignore lines which are just a "\n".
@@ -539,12 +617,12 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
     yyjson_doc *doc = yyjson_read_opts(buf, strlen(buf), opt.yyjson_read_flag, NULL, &err);
     if (doc == NULL) {
       output_verbose_error(buf, err);
-      error("Couldn't parse JSON on line %i\n", i + 1);
+      Rf_error("Couldn't parse JSON on line %i\n", i + 1);
     }
     
     yyjson_val *obj = yyjson_doc_get_root(doc);
     if (yyjson_get_type(obj) != YYJSON_TYPE_OBJ) {
-      error("parse_ndjson_as_df() only works if all lines represent JSON objects");
+      Rf_error("parse_ndjson_as_df() only works if all lines represent JSON objects");
     }
     
     for (unsigned int col = 0; col < ncols; col++) {
@@ -582,54 +660,29 @@ SEXP parse_ndjson_file_as_df_(SEXP filename_, SEXP nread_, SEXP nskip_, SEXP npr
         }
         break;
       default:
-        error("parse_ndjson_file_as_df_(): Unknown type");
+        Rf_error("parse_ndjson_file_as_df_(): Unknown type");
       } 
       
     }
     
+    yyjson_doc_free(doc);
     row++;
   }
   
   gzclose(input);
   
   
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set colnames on data.frame
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP nms_ = PROTECT(allocVector(STRSXP, ncols)); nprotect++;
-  for (unsigned int i = 0; i < ncols; i++) {
-    SET_STRING_ELT(nms_, i, mkChar(colname[i]));
-  }
-  Rf_setAttrib(df_, R_NamesSymbol, nms_);
+  truncate_list_of_vectors(df_, row, nrows);
+  SEXP df_final_ = PROTECT(promote_list_to_data_frame(df_, colname, ncols)); nprotect++;
   
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Resize each data.frame column vector to match the actual data length
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if (nrows != row) {
-    int allocated_length = nrows;
-    int data_length = row;
-    for (int i=0; i < length(df_); i++) {
-      SETLENGTH(VECTOR_ELT(df_, i), data_length);
-      SET_TRUELENGTH(VECTOR_ELT(df_, i), allocated_length);
-      SET_GROWABLE_BIT(VECTOR_ELT(df_, i));
-    }
+  // 'colname' strings were allocated and copied from their original yyjson docs. FREE!
+  for (int i = 0; i < ncols; i++) {
+    free(colname[i]);
   }
   
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set empty rownames on data.frame
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP rownames = PROTECT(allocVector(INTSXP, 2)); nprotect++;
-  SET_INTEGER_ELT(rownames, 0, NA_INTEGER);
-  SET_INTEGER_ELT(rownames, 1, -row);
-  setAttrib(df_, R_RowNamesSymbol, rownames);
-  
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set 'data.frame' class
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SET_CLASS(df_, mkString("data.frame"));
   
   UNPROTECT(nprotect);
-  return df_;
+  return df_final_;
 }
 
 
@@ -643,9 +696,9 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
   parse_options opt = create_parse_options(parse_opts_);
   opt.yyjson_read_flag |= YYJSON_READ_STOP_WHEN_DONE;
   
-  int nread  = asInteger(nread_);
-  int nskip  = asInteger(nskip_);
-  int nprobe = asInteger(nprobe_);
+  int nread  = Rf_asInteger(nread_);
+  int nskip  = Rf_asInteger(nskip_);
+  int nprobe = Rf_asInteger(nprobe_);
   
   if (nread  <= 0) { nread  = INT32_MAX; }
   if (nprobe <= 0) { nprobe = INT32_MAX; }
@@ -661,10 +714,20 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
   //        insert resulting robject into list
   //   - free the doc
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  char *str = (char *)CHAR( STRING_ELT(str_, 0) );
-  size_t str_size = strlen(str);
-  size_t orig_str_size = strlen(str);
-  size_t total_read = 0;
+  char *str;
+  size_t str_size;      
+  size_t orig_str_size; 
+  size_t total_read = 0;    
+  
+  if (TYPEOF(str_) == RAWSXP) {
+    str           = (char *)RAW(str_);
+    str_size      = (size_t)Rf_length(str_);
+    orig_str_size = (size_t)Rf_length(str_);
+  } else {
+    str           = (char *)CHAR( STRING_ELT(str_, 0) );
+    str_size      = strlen(str);
+    orig_str_size = strlen(str);
+  }
   
   
   
@@ -694,7 +757,7 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
   // Each column also has a 'type_bitset' to keep track of the type of each
   // value across the different {}-objects
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  char *colname[MAX_DF_COLS];
+  char *colname[MAX_DF_COLS] = { 0 };
   unsigned int type_bitset[MAX_DF_COLS] = {0};
   unsigned int sexp_type[MAX_DF_COLS] = {0};
   int ncols = 0;
@@ -712,7 +775,7 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
     size_t pos = yyjson_doc_get_read_size(doc);
     if (doc == NULL) {
       // output_verbose_error(buf, err);
-      error("Couldn't parse JSON during probe line %i\n", nrows + 1);
+      Rf_error("Couldn't parse JSON during probe line %i\n", nrows + 1);
     }
     
     yyjson_val *obj = yyjson_doc_get_root(doc);
@@ -732,15 +795,21 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
       if (name_idx < 0) {
         // Name has not been seen yet
         name_idx = ncols;
-        colname[ncols] = (char *)yyjson_get_str(key);
+        char *new_name = (char *)yyjson_get_str(key);
+        size_t n = strlen(new_name) + 1;
+        colname[ncols] = calloc(n, 1);
+        if (colname[ncols] == 0) Rf_error("Failed to allocate 'colname'");
+        strcpy(colname[ncols], new_name);
         ncols++;
         if (ncols == MAX_DF_COLS) {
-          error("Maximum columns for data.frame exceeded: %i", MAX_DF_COLS);
+          Rf_error("Maximum columns for data.frame exceeded: %i", MAX_DF_COLS);
         }
       }
       
       type_bitset[name_idx] = update_type_bitset(type_bitset[name_idx], val, &opt);
     }
+    
+    yyjson_doc_free(doc);
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Advance string 
@@ -781,9 +850,9 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
   
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Create a data.frame.
+  // Create a list to hold vectors
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP df_ = PROTECT(allocVector(VECSXP, ncols)); nprotect++;
+  SEXP df_ = PROTECT(Rf_allocVector(VECSXP, ncols)); nprotect++;
   
   
   
@@ -803,12 +872,12 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
     unsigned int alloc_type = sexp_type[col] == INT64SXP ? REALSXP : sexp_type[col];
     
     // Allocate memory for column
-    SEXP vec_ = PROTECT(allocVector(alloc_type, nrows));
+    SEXP vec_ = PROTECT(Rf_allocVector(alloc_type, nrows));
     if (sexp_type[col] == INT64SXP) {
-      setAttrib(vec_, R_ClassSymbol, mkString("integer64"));
+      Rf_setAttrib(vec_, R_ClassSymbol, Rf_mkString("integer64"));
     }
     
-    // place vector into data.frame
+    // place vector into list
     SET_VECTOR_ELT(df_, col, vec_);
     UNPROTECT(1); // no longer needs protection once part of data.frame
   }
@@ -832,12 +901,12 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
     size_t pos = yyjson_doc_get_read_size(doc);
     if (doc == NULL) {
       // output_verbose_error(buf, err);
-      error("Couldn't parse JSON on line %i\n", i + 1);
+      Rf_error("Couldn't parse JSON on line %i\n", i + 1);
     }
     
     yyjson_val *obj = yyjson_doc_get_root(doc);
     if (yyjson_get_type(obj) != YYJSON_TYPE_OBJ) {
-      error("parse_ndjson_as_df() only works if all lines represent JSON objects");
+      Rf_error("parse_ndjson_as_df() only works if all lines represent JSON objects");
     }
     
     for (unsigned int col = 0; col < ncols; col++) {
@@ -875,10 +944,12 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
         }
         break;
       default:
-        error("parse_ndjson_file_as_df_(): Unknown type");
+        Rf_error("parse_ndjson_file_as_df_(): Unknown type");
       } 
       
     }
+    
+    yyjson_doc_free(doc);
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Advance string 
@@ -891,41 +962,17 @@ SEXP parse_ndjson_str_as_df_(SEXP str_, SEXP nread_, SEXP nskip_, SEXP nprobe_, 
     row++;
   }
   
-  
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set colnames on data.frame
+  // Promote the 'list' of accumulated vectors to be a real 'data.frame'
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP nms_ = PROTECT(allocVector(STRSXP, ncols)); nprotect++;
-  for (unsigned int i = 0; i < ncols; i++) {
-    SET_STRING_ELT(nms_, i, mkChar(colname[i]));
-  }
-  Rf_setAttrib(df_, R_NamesSymbol, nms_);
+  truncate_list_of_vectors(df_, row, nrows);
+  df_ = PROTECT(promote_list_to_data_frame(df_, colname, ncols));  nprotect++;
   
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Resize each data.frame column vector to match the actual data length
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if (nrows != row) {
-    int allocated_length = nrows;
-    int data_length      = row;
-    for (int i=0; i < length(df_); i++) {
-      SETLENGTH(VECTOR_ELT(df_, i), data_length);
-      SET_TRUELENGTH(VECTOR_ELT(df_, i), allocated_length);
-      SET_GROWABLE_BIT(VECTOR_ELT(df_, i));
-    }
+  // Free the 'colnames' we copied out of JSON docs when probing
+  for (int i = 0; i < ncols; i++) {
+    free(colname[i]);
   }
   
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set empty rownames on data.frame
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SEXP rownames = PROTECT(allocVector(INTSXP, 2)); nprotect++;
-  SET_INTEGER_ELT(rownames, 0, NA_INTEGER);
-  SET_INTEGER_ELT(rownames, 1, -row);
-  setAttrib(df_, R_RowNamesSymbol, rownames);
-  
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  // Set 'data.frame' class
-  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  SET_CLASS(df_, mkString("data.frame"));
   
   UNPROTECT(nprotect);
   return df_;

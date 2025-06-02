@@ -1,5 +1,25 @@
 
 
+# yyjsonr 0.1.21 2025-06-03
+
+* Now get size of gzipped file in an endian-neutral way. Issue #39
+* Fix underflow issue when trying to verbosely report an error at position 0
+* Remove non-API calls: SETLENGTH, SET_TRUELENGTH, SET_GROWABLE_BIT
+* Address valgrind/rchk errors
+* Depends on R >= 4.1.0 (using new pipe and lambda syntax in examples)
+* Opts: Added `digits_secs` to control conversion of POSIXct datetimes with 
+    fractional seconds
+* Opts: Added `digits_signif` to control significant digits in numeric representation
+* Support `YYJSON_READ_NUMBER_AS_RAW` to read all numbers as strings
+* Opts: Add `digits_promote` to control decimal places when numbers in
+    JSON []-arrays are promoted to strings.
+* Opts: Add `json_verbatim` to write strings (with class "json") directly
+    into the output
+* Opts: Add `single_null` to specify R value to use for single 
+    JSON `null` values
+* Add raw IO for json, ndjson
+* Update to `yyjson` v0.11.1 (May 2025)
+
 # yyjsonr 0.1.20 2024-04-10
 
 * Fix outstanding `rchk` errors

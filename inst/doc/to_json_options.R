@@ -10,14 +10,14 @@ suppressPackageStartupMessages({
 })
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  write_json_str(iris)
-#  write_json_str(iris, opts = list())
-#  write_json_str(iris, opts = opts_write_json())
+# write_json_str(iris)
+# write_json_str(iris, opts = list())
+# write_json_str(iris, opts = opts_write_json())
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  write_json_str(iris, opts = list(str_specials = 'string'))
-#  write_json_str(iris, opts = opts_write_json(str_specials = 'string'))
-#  write_json_str(iris, str_specials = 'string')
+# write_json_str(iris, opts = list(str_specials = 'string'))
+# write_json_str(iris, opts = opts_write_json(str_specials = 'string'))
+# write_json_str(iris, str_specials = 'string')
 
 ## -----------------------------------------------------------------------------
 robj <- c(1, 1.23, 3.141592654)

@@ -5,7 +5,9 @@
 \title{Create named list of options for serializing R to JSON}
 \usage{
 opts_write_json(
-  digits = -1,
+  digits = -1L,
+  digits_secs = 0L,
+  digits_signif = -1L,
   pretty = FALSE,
   auto_unbox = FALSE,
   dataframe = c("rows", "columns"),
@@ -14,6 +16,7 @@ opts_write_json(
   num_specials = c("null", "string"),
   str_specials = c("null", "string"),
   fast_numerics = FALSE,
+  json_verbatim = FALSE,
   yyjson_write_flag = 0L
 )
 }
@@ -21,7 +24,16 @@ opts_write_json(
 \item{digits}{decimal places to keep for floating point numbers. Default: -1.
 Positive values specify number of decimal places. Using zero will
 write the numeric value as an integer. Values less than zero mean that
-the floating point value should be written as-is (the default).}
+the floating point value should be written as-is (the default).
+This argument is ignored if \code{digits_signif} is greater than zero.}
+
+\item{digits_secs}{decimal places for fractional seconds when converting
+times to a string representation. Default: 0.  Valid range: 0 to 6}
+
+\item{digits_signif}{significant decimal places to store in floating point numbers.
+Default: -1 means to output the number as-is (while respecting the
+\code{digits}) argument.  Values above 0 will produce rounding to
+the given number of places and the \code{digits} argument will be ignored.}
 
 \item{pretty}{Logical value indicating if the created JSON string should have
 whitespace for indentation and linebreaks. Default: FALSE.
@@ -58,6 +70,11 @@ Expert users are invited to also consider the
 \code{YYJSON_WRITE_INF_AND_NAN_AS_NULL} options for \code{yyjson_write_flags}
 and should consult the \code{yyjson} API documentation for
 further details.}
+
+\item{json_verbatim}{Write strings with class 'json' directly into
+the result?  Default: FALSE.  If \code{json_verbatim = TRUE} and
+a string has the class \code{"json"}, then it will be written verbatim
+into the output.}
 
 \item{yyjson_write_flag}{integer vector corresponding to internal \code{yyjson}
 options.  See \code{yyjson_write_flag} in this package, and read

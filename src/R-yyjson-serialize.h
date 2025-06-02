@@ -70,12 +70,15 @@ typedef struct {
   unsigned int factor;
   unsigned int null;
   int digits;
+  int digits_secs;
+  int digits_signif;
   bool auto_unbox; 
   unsigned int name_repair;
   unsigned int str_specials;
   unsigned int num_specials;
   unsigned int yyjson_write_flag;
   bool fast_numerics;
+  bool json_verbatim;
 } serialize_options;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

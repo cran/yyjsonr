@@ -10,14 +10,14 @@ suppressPackageStartupMessages({
 })
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  read_json_str(str)
-#  read_json_str(str, opts = list())
-#  read_json_str(str, opts = opts_read_json())
+# read_json_str(str)
+# read_json_str(str, opts = list())
+# read_json_str(str, opts = opts_read_json())
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  read_json_str(str, opts = list(str_specials = 'string'))
-#  read_json_str(str, opts = opts_read_json(str_specials = 'string'))
-#  read_json_str(str, str_specials = 'string')
+# read_json_str(str, opts = list(str_specials = 'string'))
+# read_json_str(str, opts = opts_read_json(str_specials = 'string'))
+# read_json_str(str, str_specials = 'string')
 
 ## -----------------------------------------------------------------------------
 json <- '[1,2,3.1,"apple", null]'
